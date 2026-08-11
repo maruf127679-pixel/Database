@@ -6,7 +6,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Serverless MongoDB Connection Handler
+// MongoDB Connection Handler
 let isConnected = false;
 const connectDB = async () => {
     if (isConnected) return;
@@ -24,11 +24,11 @@ app.use(async (req, res, next) => {
     next();
 });
 
-// Dynamic Schema (যেকোনো নতুন Field বা Data অটোমেটিক হ্যান্ডেল করবে)
+// Dynamic Schema
 const userSchema = new mongoose.Schema({}, { strict: false, timestamps: true });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// 1. User Register/Login (Fixed: using userId instead of username)
+// 1. User Register/Login
 app.post('/api/user/login', async (req, res) => {
     try {
         const { userId, name, password, ...otherData } = req.body;
@@ -37,19 +37,24 @@ app.post('/api/user/login', async (req, res) => {
             return res.status(400).json({ error: 'User ID and Password Required' });
         }
 
-        // চেক করুন এই userId এর কোনো ইউজার আগে থেকেই আছে কি না
         let user = await User.findOne({ userId });
 
         if (user) {
-            // ইউজার থাকলে পাসওয়ার্ড মিলিয়ে দেখুন (Login Logic)
             if (user.password === password) {
                 return res.json({ success: true, message: 'লগিন সফল হয়েছে!', user });
             } else {
                 return res.status(400).json({ error: 'পাসওয়ার্ড ভুল হয়েছে!' });
             }
         } else {
-            // যদি ইউজার না থাকে, তবে নতুন ক্রিয়েট করুন (Register Logic)
-            user = new User({ userId, name, password, ...otherData });
+            // নতুন ইউজারের ক্ষেত্রে ডিফোল্ট coins ও exp সেট হবে
+            user = new User({ 
+                userId, 
+                name, 
+                password, 
+                coins: 500, 
+                exp: 0, 
+                ...otherData 
+            });
             await user.save();
             return res.json({ success: true, message: 'নতুন একাউন্ট তৈরি হয়েছে!', user });
         }
@@ -58,7 +63,7 @@ app.post('/api/user/login', async (req, res) => {
     }
 });
 
-// 2. Auto Update Data (Fixed: using userId)
+// 2. Auto Update Data (upsert: false দেওয়া হয়েছে যাতে না থাকা ইউজার ভুল ওভাররাইট না হয়)
 app.post('/api/user/update', async (req, res) => {
     try {
         const { userId, ...updateData } = req.body;
@@ -67,8 +72,12 @@ app.post('/api/user/update', async (req, res) => {
         const user = await User.findOneAndUpdate(
             { userId },
             { $set: updateData },
-            { new: true, upsert: true, strict: false }
+            { new: true, upsert: false, strict: false }
         );
+
+        if (!user) {
+            return res.status(404).json({ error: 'User Not Found' });
+        }
 
         res.json({ success: true, user });
     } catch (err) {
@@ -76,7 +85,7 @@ app.post('/api/user/update', async (req, res) => {
     }
 });
 
-// 3. Leaderboard API (Fixed: querying by userId)
+// 3. Leaderboard API
 app.get('/api/leaderboard', async (req, res) => {
     try {
         const leaderboard = await User.find({ userId: { $exists: true } })
