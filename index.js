@@ -6,7 +6,6 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// MongoDB Connection Handler
 let isConnected = false;
 const connectDB = async () => {
     if (isConnected) return;
@@ -24,21 +23,18 @@ app.use(async (req, res, next) => {
     next();
 });
 
-// Dynamic Schema
 const userSchema = new mongoose.Schema({}, { strict: false, timestamps: true });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// 1. User Register/Login (Fixed Logic)
+// 1. User Register/Login
 app.post('/api/user/login', async (req, res) => {
     try {
-        // userId এর বদলে name দিয়ে লগিন হবে
         const { name, password, ...otherData } = req.body;
 
         if (!name || !password) {
             return res.status(400).json({ error: 'Username and Password Required' });
         }
 
-        // ডাটাবেসে নাম দিয়ে ইউজার খুঁজুন
         let user = await User.findOne({ name });
 
         if (user) {
@@ -48,7 +44,6 @@ app.post('/api/user/login', async (req, res) => {
                 return res.status(400).json({ error: 'পাসওয়ার্ড ভুল হয়েছে!' });
             }
         } else {
-            // নতুন ইউজারের ক্ষেত্রে Backend থেকে একটি নতুন userId তৈরি হবে
             const newUserId = 'USER-' + Math.floor(100000 + Math.random() * 900000);
             
             user = new User({ 
