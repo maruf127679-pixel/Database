@@ -24,56 +24,37 @@ app.use(async (req, res, next) => {
     next();
 });
 
-// Flexible Dynamic User Schema (strict: false)
-// ফ্রন্টএন্ড থেকে নতুন যেকোনো ফিল্ড পাঠালেই তা অটোমেটিক ডাটাবেসে ক্রিয়েট ও সেভ হয়ে যাবে
-const userSchema = new mongoose.Schema(
-    {
-        email: { type: String, required: true, unique: true }
-    },
-    { 
-        strict: false,       
-        timestamps: true     
-    }
-);
-
+// Dynamic Schema (যেকোনো নতুন Field বা Data অটোমেটিক হ্যান্ডেল করবে)
+const userSchema = new mongoose.Schema({}, { strict: false, timestamps: true });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// 1. Dynamic Login / Register / Profile Init API
+// 1. User Register/Login (Auto Create)
 app.post('/api/user/login', async (req, res) => {
     try {
-        const { email, ...userData } = req.body;
-        if (!email) return res.status(400).json({ error: 'Email Required' });
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ error: 'userId Required' });
 
-        const cleanEmail = email.toLowerCase();
-        let user = await User.findOne({ email: cleanEmail });
-
+        let user = await User.findOne({ userId });
         if (!user) {
-            // নতুন ইউজার হলে পাঠানো সমস্ত ফিল্ড সহ অটো ডাটাবেসে সেভ হবে
-            user = new User({ email: cleanEmail, ...userData });
+            user = new User(req.body);
             await user.save();
         }
-
         res.json({ success: true, user });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// 2. Dynamic Update API (যেকোনো নতুন ফিল্ড প্রফাইলে ডায়নামিকালি ক্রিয়েট/আপডেট হবে)
+// 2. Auto Update Data
 app.post('/api/user/update', async (req, res) => {
     try {
-        const { email, ...updateFields } = req.body;
-        if (!email) return res.status(400).json({ error: 'Email Required' });
+        const { userId, ...updateData } = req.body;
+        if (!userId) return res.status(400).json({ error: 'userId Required' });
 
         const user = await User.findOneAndUpdate(
-            { email: email.toLowerCase() },
-            { $set: updateFields },
-            { 
-                new: true, 
-                upsert: true, 
-                strict: false, 
-                setDefaultsOnInsert: true 
-            }
+            { userId },
+            { $set: updateData },
+            { new: true, upsert: true, strict: false }
         );
 
         res.json({ success: true, user });
@@ -85,7 +66,7 @@ app.post('/api/user/update', async (req, res) => {
 // 3. Leaderboard API
 app.get('/api/leaderboard', async (req, res) => {
     try {
-        const leaderboard = await User.find({}, 'name coins exp email avatar bio')
+        const leaderboard = await User.find({ userId: { $exists: true } })
             .sort({ coins: -1, exp: -1 })
             .limit(20);
         res.json({ success: true, leaderboard });
