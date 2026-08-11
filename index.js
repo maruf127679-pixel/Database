@@ -28,16 +28,18 @@ app.use(async (req, res, next) => {
 const userSchema = new mongoose.Schema({}, { strict: false, timestamps: true });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-// 1. User Register/Login
+// 1. User Register/Login (Fixed Logic)
 app.post('/api/user/login', async (req, res) => {
     try {
-        const { userId, name, password, ...otherData } = req.body;
+        // userId এর বদলে name দিয়ে লগিন হবে
+        const { name, password, ...otherData } = req.body;
 
-        if (!userId || !password) {
-            return res.status(400).json({ error: 'User ID and Password Required' });
+        if (!name || !password) {
+            return res.status(400).json({ error: 'Username and Password Required' });
         }
 
-        let user = await User.findOne({ userId });
+        // ডাটাবেসে নাম দিয়ে ইউজার খুঁজুন
+        let user = await User.findOne({ name });
 
         if (user) {
             if (user.password === password) {
@@ -46,9 +48,11 @@ app.post('/api/user/login', async (req, res) => {
                 return res.status(400).json({ error: 'পাসওয়ার্ড ভুল হয়েছে!' });
             }
         } else {
-            // নতুন ইউজারের ক্ষেত্রে ডিফোল্ট coins ও exp সেট হবে
+            // নতুন ইউজারের ক্ষেত্রে Backend থেকে একটি নতুন userId তৈরি হবে
+            const newUserId = 'USER-' + Math.floor(100000 + Math.random() * 900000);
+            
             user = new User({ 
-                userId, 
+                userId: newUserId, 
                 name, 
                 password, 
                 coins: 500, 
@@ -63,7 +67,7 @@ app.post('/api/user/login', async (req, res) => {
     }
 });
 
-// 2. Auto Update Data (upsert: false দেওয়া হয়েছে যাতে না থাকা ইউজার ভুল ওভাররাইট না হয়)
+// 2. Auto Update Data
 app.post('/api/user/update', async (req, res) => {
     try {
         const { userId, ...updateData } = req.body;
