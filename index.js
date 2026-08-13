@@ -5,9 +5,13 @@ const cors = require("cors");
 const app = express();
 
 // ==========================================
-// Middleware
+// Middleware (CORS Updated for Vercel/Frontend Access)
 // ==========================================
-app.use(cors());
+app.use(cors({
+    origin: "*", 
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type"]
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -58,7 +62,6 @@ app.use(async (req, res, next) => {
 
 // ==========================================
 // User Schema 
-// (Logic Updated: name is now explicitly unique for accurate DB tracking)
 // ==========================================
 const userSchema = new mongoose.Schema(
     {
@@ -68,22 +71,18 @@ const userSchema = new mongoose.Schema(
             trim: true,
             unique: true 
         },
-
         password: {
             type: String,
             required: true
         },
-
         coins: {
             type: Number,
             default: 500
         },
-
         exp: {
             type: Number,
             default: 0
         },
-
         userId: {
             type: String,
             unique: true,
@@ -96,9 +95,7 @@ const userSchema = new mongoose.Schema(
     }
 );
 
-const User =
-    mongoose.models.User ||
-    mongoose.model("User", userSchema);
+const User = mongoose.models.User || mongoose.model("User", userSchema);
 
 // ==========================================
 // Home
@@ -120,24 +117,17 @@ app.get("/health", async (req, res) => {
     res.status(200).json({
         success: true,
         status: "healthy",
-        database:
-            mongoose.connection.readyState === 1
-                ? "connected"
-                : "disconnected",
+        database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
         timestamp: new Date().toISOString()
     });
 });
 
 // ==========================================
-// 1. User Register / Login (Updated Logic for 100% Perfect Sync)
+// 1. User Register / Login
 // ==========================================
 app.post("/api/user/login", async (req, res) => {
     try {
-        const {
-            name,
-            password,
-            ...otherData
-        } = req.body;
+        const { name, password, ...otherData } = req.body;
 
         if (!name || !password) {
             return res.status(400).json({
@@ -148,44 +138,29 @@ app.post("/api/user/login", async (req, res) => {
 
         let user = await User.findOne({ name });
 
-        // ------------------------------------------
-        // Existing User (isNew: false)
-        // ------------------------------------------
         if (user) {
             if (user.password === password) {
                 return res.status(200).json({
                     success: true,
                     message: "লগিন সফল হয়েছে!",
                     user,
-                    isNew: false // Indicates old user to Frontend so local DB can be overwritten 
+                    isNew: false
                 });
             }
-
             return res.status(400).json({
                 success: false,
                 error: "পাসওয়ার্ড ভুল হয়েছে!"
             });
         }
 
-        // ------------------------------------------
-        // New User (isNew: true)
-        // ------------------------------------------
-        const newUserId =
-            "USER-" +
-            Math.floor(100000 + Math.random() * 900000);
+        const newUserId = "USER-" + Math.floor(100000 + Math.random() * 900000);
 
         user = new User({
             userId: newUserId,
             name,
             password,
-            coins:
-                otherData.coins !== undefined
-                    ? Number(otherData.coins)
-                    : 500,
-            exp:
-                otherData.exp !== undefined
-                    ? Number(otherData.exp)
-                    : 0,
+            coins: otherData.coins !== undefined ? Number(otherData.coins) : 500,
+            exp: otherData.exp !== undefined ? Number(otherData.exp) : 0,
             ...otherData
         });
 
@@ -195,12 +170,11 @@ app.post("/api/user/login", async (req, res) => {
             success: true,
             message: "নতুন একাউন্ট তৈরি হয়েছে!",
             user,
-            isNew: true // Indicates new user so Frontend can save guest points to database
+            isNew: true
         });
 
     } catch (err) {
         console.error("Login Error:", err);
-
         return res.status(500).json({
             success: false,
             error: err.message
@@ -209,15 +183,11 @@ app.post("/api/user/login", async (req, res) => {
 });
 
 // ==========================================
-// 2. Auto Update Data (Perfect Coin syncing)
+// 2. Auto Update Data
 // ==========================================
 app.post("/api/user/update", async (req, res) => {
     try {
-        const {
-            name,
-            coins,
-            exp
-        } = req.body;
+        const { name, coins, exp } = req.body;
 
         if (!name) {
             return res.status(400).json({
@@ -227,24 +197,13 @@ app.post("/api/user/update", async (req, res) => {
         }
 
         const updateData = {};
-
-        if (coins !== undefined) {
-            updateData.coins = Number(coins);
-        }
-
-        if (exp !== undefined) {
-            updateData.exp = Number(exp);
-        }
+        if (coins !== undefined) updateData.coins = Number(coins);
+        if (exp !== undefined) updateData.exp = Number(exp);
 
         const user = await User.findOneAndUpdate(
             { name },
-            {
-                $set: updateData
-            },
-            {
-                new: true,
-                upsert: false
-            }
+            { $set: updateData },
+            { new: true, upsert: false }
         );
 
         if (!user) {
@@ -262,7 +221,6 @@ app.post("/api/user/update", async (req, res) => {
 
     } catch (err) {
         console.error("Update Error:", err);
-
         return res.status(500).json({
             success: false,
             error: err.message
@@ -271,21 +229,15 @@ app.post("/api/user/update", async (req, res) => {
 });
 
 // ==========================================
-// 3. Leaderboard API (Sorted perfectly Top 20)
+// 3. Leaderboard API
 // ==========================================
 app.get("/api/leaderboard", async (req, res) => {
     try {
         const leaderboard = await User.find({
-            name: {
-                $exists: true,
-                $ne: ""
-            }
+            name: { $exists: true, $ne: "" }
         })
-            .sort({
-                coins: -1, // Sort highest to lowest coins
-                exp: -1    // Sort highest to lowest exp as tie-breaker
-            })
-            .limit(20) // Get top 20
+            .sort({ coins: -1, exp: -1 })
+            .limit(20)
             .select("-password");
 
         return res.status(200).json({
@@ -296,7 +248,6 @@ app.get("/api/leaderboard", async (req, res) => {
 
     } catch (err) {
         console.error("Leaderboard Error:", err);
-
         return res.status(500).json({
             success: false,
             error: err.message
@@ -305,39 +256,24 @@ app.get("/api/leaderboard", async (req, res) => {
 });
 
 // ==========================================
-// 404
+// 404 & Error Handler
 // ==========================================
 app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        error: "Route Not Found",
-        path: req.originalUrl
-    });
+    res.status(404).json({ success: false, error: "Route Not Found", path: req.originalUrl });
 });
 
-// ==========================================
-// Error Handler
-// ==========================================
 app.use((err, req, res, next) => {
     console.error("❌ Server Error:", err);
-
-    res.status(500).json({
-        success: false,
-        error: "Internal Server Error"
-    });
+    res.status(500).json({ success: false, error: "Internal Server Error" });
 });
 
 // ==========================================
-// Vercel Export
+// Export for Vercel / Local Setup
 // ==========================================
 module.exports = app;
 
-// ==========================================
-// Local / Render Support
-// ==========================================
 if (process.env.VERCEL !== "1") {
     const PORT = process.env.PORT || 3000;
-
     app.listen(PORT, () => {
         console.log(`🚀 Server running on port ${PORT}`);
     });
