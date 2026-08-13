@@ -23,7 +23,14 @@ app.use(async (req, res, next) => {
     next();
 });
 
-const userSchema = new mongoose.Schema({}, { strict: false, timestamps: true });
+const userSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    password: { type: String, required: true },
+    coins: { type: Number, default: 500 },
+    exp: { type: Number, default: 0 },
+    userId: { type: String }
+}, { strict: false, timestamps: true });
+
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 // 1. User Register/Login
@@ -45,13 +52,13 @@ app.post('/api/user/login', async (req, res) => {
             }
         } else {
             const newUserId = 'USER-' + Math.floor(100000 + Math.random() * 900000);
-            
+
             user = new User({ 
                 userId: newUserId, 
                 name, 
                 password, 
-                coins: 500, 
-                exp: 0, 
+                coins: otherData.coins || 500, 
+                exp: otherData.exp || 0, 
                 ...otherData 
             });
             await user.save();
@@ -65,12 +72,12 @@ app.post('/api/user/login', async (req, res) => {
 // 2. Auto Update Data
 app.post('/api/user/update', async (req, res) => {
     try {
-        const { userId, ...updateData } = req.body;
-        if (!userId) return res.status(400).json({ error: 'userId Required' });
+        const { name, coins, exp } = req.body;
+        if (!name) return res.status(400).json({ error: 'Username Required' });
 
         const user = await User.findOneAndUpdate(
-            { userId },
-            { $set: updateData },
+            { name: name },
+            { $set: { coins: Number(coins), exp: Number(exp) } },
             { new: true, upsert: false, strict: false }
         );
 
@@ -87,7 +94,7 @@ app.post('/api/user/update', async (req, res) => {
 // 3. Leaderboard API
 app.get('/api/leaderboard', async (req, res) => {
     try {
-        const leaderboard = await User.find({ userId: { $exists: true } })
+        const leaderboard = await User.find({ name: { $exists: true } })
             .sort({ coins: -1, exp: -1 })
             .limit(20);
         res.json({ success: true, leaderboard });
