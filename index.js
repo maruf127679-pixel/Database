@@ -57,14 +57,16 @@ app.use(async (req, res, next) => {
 });
 
 // ==========================================
-// User Schema
+// User Schema 
+// (Logic Updated: name is now explicitly unique for accurate DB tracking)
 // ==========================================
 const userSchema = new mongoose.Schema(
     {
         name: {
             type: String,
             required: true,
-            trim: true
+            trim: true,
+            unique: true 
         },
 
         password: {
@@ -127,7 +129,7 @@ app.get("/health", async (req, res) => {
 });
 
 // ==========================================
-// 1. User Register / Login
+// 1. User Register / Login (Updated Logic for 100% Perfect Sync)
 // ==========================================
 app.post("/api/user/login", async (req, res) => {
     try {
@@ -147,14 +149,15 @@ app.post("/api/user/login", async (req, res) => {
         let user = await User.findOne({ name });
 
         // ------------------------------------------
-        // Existing User
+        // Existing User (isNew: false)
         // ------------------------------------------
         if (user) {
             if (user.password === password) {
                 return res.status(200).json({
                     success: true,
                     message: "লগিন সফল হয়েছে!",
-                    user
+                    user,
+                    isNew: false // Indicates old user to Frontend so local DB can be overwritten 
                 });
             }
 
@@ -165,7 +168,7 @@ app.post("/api/user/login", async (req, res) => {
         }
 
         // ------------------------------------------
-        // New User
+        // New User (isNew: true)
         // ------------------------------------------
         const newUserId =
             "USER-" +
@@ -191,7 +194,8 @@ app.post("/api/user/login", async (req, res) => {
         return res.status(201).json({
             success: true,
             message: "নতুন একাউন্ট তৈরি হয়েছে!",
-            user
+            user,
+            isNew: true // Indicates new user so Frontend can save guest points to database
         });
 
     } catch (err) {
@@ -205,7 +209,7 @@ app.post("/api/user/login", async (req, res) => {
 });
 
 // ==========================================
-// 2. Auto Update Data
+// 2. Auto Update Data (Perfect Coin syncing)
 // ==========================================
 app.post("/api/user/update", async (req, res) => {
     try {
@@ -267,7 +271,7 @@ app.post("/api/user/update", async (req, res) => {
 });
 
 // ==========================================
-// 3. Leaderboard API
+// 3. Leaderboard API (Sorted perfectly Top 20)
 // ==========================================
 app.get("/api/leaderboard", async (req, res) => {
     try {
@@ -278,10 +282,10 @@ app.get("/api/leaderboard", async (req, res) => {
             }
         })
             .sort({
-                coins: -1,
-                exp: -1
+                coins: -1, // Sort highest to lowest coins
+                exp: -1    // Sort highest to lowest exp as tie-breaker
             })
-            .limit(20)
+            .limit(20) // Get top 20
             .select("-password");
 
         return res.status(200).json({
@@ -331,8 +335,6 @@ module.exports = app;
 // ==========================================
 // Local / Render Support
 // ==========================================
-// Vercel-এ এই অংশটি server start করবে না.
-// Render বা local-এ চালালে করবে.
 if (process.env.VERCEL !== "1") {
     const PORT = process.env.PORT || 3000;
 
